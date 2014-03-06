@@ -1,7 +1,15 @@
 package storm.cookbook;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.LinkedBlockingQueue;
+
+import com.mongodb.BasicDBObject;
+import com.mongodb.DB;
+import com.mongodb.DBCollection;
+import com.mongodb.DBCursor;
+import com.mongodb.DBObject;
 
 import backtype.storm.spout.SpoutOutputCollector;
 import backtype.storm.task.TopologyContext;
@@ -16,37 +24,41 @@ public class HelloWorldSpout extends BaseRichSpout {
 	private static final long serialVersionUID = 3457693188404434815L;
 	
 	private SpoutOutputCollector collector;
-	private int referenceRandom;
-	private static final int MAX_RANDOM = 10;
-	
-	public HelloWorldSpout() {
-		final Random rand = new Random();
-		referenceRandom = rand.nextInt(MAX_RANDOM);
-	}
+	private static final MongoDriver mongo = new MongoDriver();
+	private List<DBObject> allClicks;
 
 	@Override
 	public void open(Map conf, TopologyContext context,
 			SpoutOutputCollector collector) {
 		this.collector = collector;
+		DB db = mongo.getDb();
+		DBCollection clicks = db.getCollection("clicks");
+		allClicks = clicks.find().toArray();
 		
 	}
 
 	@Override
 	public void nextTuple() {
-		Utils.sleep(100);
-		final Random rand = new Random();
-		int instanceRandom = rand.nextInt(MAX_RANDOM);
 		
-		if (instanceRandom == referenceRandom) {
-			collector.emit(new Values("Hello World"));
-		} else {
-			collector.emit(new Values("Other Random Word"));
+		DBObject click = null;
+		if (!allClicks.isEmpty()) {
+			click = allClicks.get(0);
+			allClicks.remove(click);
 		}
+		
+		if (click != null) {
+			System.out.println("THE CLICK IS " + click.get("_id"));
+			collector.emit(new Values(click.get("movieId"), click.get("userId")));
+		} else {
+			System.out.println("The click is null");
+		}
+		
 	}
 
 	@Override
 	public void declareOutputFields(OutputFieldsDeclarer declarer) {
-		declarer.declare(new Fields("sentence"));
+		declarer.declare(new Fields("userId", "movieId"));
+		
 	}
 
 }
