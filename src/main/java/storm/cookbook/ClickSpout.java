@@ -19,7 +19,7 @@ import backtype.storm.tuple.Fields;
 import backtype.storm.tuple.Values;
 import backtype.storm.utils.Utils;
 
-public class HelloWorldSpout extends BaseRichSpout {
+public class ClickSpout extends BaseRichSpout {
 
 	private static final long serialVersionUID = 3457693188404434815L;
 	
@@ -40,18 +40,27 @@ public class HelloWorldSpout extends BaseRichSpout {
 	@Override
 	public void nextTuple() {
 		
+		DB db = mongo.getDb();
+		DBCollection movies = db.getCollection("movies");
+		DBCollection users = db.getCollection("users");
+		
 		DBObject click = null;
 		if (!allClicks.isEmpty()) {
-			click = allClicks.get(0);
-			allClicks.remove(click);
+			click = allClicks.get(allClicks.size() - 1);
 		}
 		
-		if (click != null) {
-			System.out.println("THE CLICK IS " + click.get("_id"));
-			collector.emit(new Values(click.get("movieId"), click.get("userId")));
-		} else {
-			System.out.println("The click is null");
-		}
+		if (click != null) {	
+			
+			DBObject userIdObject = new BasicDBObject("_id", click.get("userId"));
+			DBObject user = users.findOne(userIdObject);
+			String userName = user.get("name").toString();
+			
+			DBObject movieIdObject = new BasicDBObject("_id", click.get("movieId"));
+			DBObject movie = movies.findOne(movieIdObject);
+			String movieName = movie.get("name").toString();
+			
+			collector.emit(new Values(userName, movieName));
+		} 
 		
 	}
 
