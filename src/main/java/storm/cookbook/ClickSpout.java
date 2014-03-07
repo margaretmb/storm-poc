@@ -1,5 +1,6 @@
 package storm.cookbook;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -10,6 +11,7 @@ import com.mongodb.DB;
 import com.mongodb.DBCollection;
 import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
+import com.mongodb.QueryBuilder;
 
 import backtype.storm.spout.SpoutOutputCollector;
 import backtype.storm.task.TopologyContext;
@@ -25,7 +27,7 @@ public class ClickSpout extends BaseRichSpout {
 	
 	private SpoutOutputCollector collector;
 	private static final MongoDriver mongo = new MongoDriver();
-	private List<DBObject> allClicks;
+	private List<DBObject> newClicks;
 
 	@Override
 	public void open(Map conf, TopologyContext context,
@@ -33,7 +35,8 @@ public class ClickSpout extends BaseRichSpout {
 		this.collector = collector;
 		DB db = mongo.getDb();
 		DBCollection clicks = db.getCollection("clicks");
-		allClicks = clicks.find().toArray();
+		DBObject query = QueryBuilder.start("processed").notEquals(true).get();
+		newClicks = clicks.find(query).toArray();
 		
 	}
 
@@ -44,12 +47,11 @@ public class ClickSpout extends BaseRichSpout {
 		DBCollection movies = db.getCollection("movies");
 		DBCollection users = db.getCollection("users");
 		
-		DBObject click = null;
-		if (!allClicks.isEmpty()) {
-			click = allClicks.get(allClicks.size() - 1);
-		}
+		List<ClickEvent> clicks = new ArrayList<ClickEvent>();
 		
-		if (click != null) {	
+		for (DBObject click : newClicks){	
+			
+			DBCollection clickCollection = db.getCollection("clicks");
 			
 			DBObject userIdObject = new BasicDBObject("_id", click.get("userId"));
 			DBObject user = users.findOne(userIdObject);
@@ -59,14 +61,42 @@ public class ClickSpout extends BaseRichSpout {
 			DBObject movie = movies.findOne(movieIdObject);
 			String movieName = movie.get("name").toString();
 			
-			collector.emit(new Values(userName, movieName));
+			clicks.add(new ClickEvent(movieName, userName));
+			
+			DBObject newClick = new BasicDBObject("_id",
+					click.get("_id"))
+					.append("movieId", click.get("movieId"))
+					.append("userId", click.get("userId"))
+					.append("processed", true);
+			clickCollection.update(click, newClick);
 		} 
+		
+		collector.emit(new Values(clicks));
+		
+	}
+	
+	public class ClickEvent {
+		private String movieName;
+		private String userName;
+		
+		public ClickEvent(String movieName, String userName) {
+			this.movieName = movieName;
+			this.userName = userName;
+		}
+
+		public String getMovieName() {
+			return movieName;
+		}
+
+		public String getUserName() {
+			return userName;
+		}
 		
 	}
 
 	@Override
 	public void declareOutputFields(OutputFieldsDeclarer declarer) {
-		declarer.declare(new Fields("userId", "movieId"));
+		declarer.declare(new Fields("clicks"));
 		
 	}
 

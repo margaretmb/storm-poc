@@ -30,9 +30,11 @@ public class ClickTopology {
 			@Override
 			public void run() {
 				TopologyBuilder builder = new TopologyBuilder();
-				builder.setSpout("randomHelloWorld", new ClickSpout(), 10);
-				builder.setBolt("HelloWorldBolt", new ClickCounterBolt(), 3)
-				.shuffleGrouping("randomHelloWorld");
+				builder.setSpout("clickSpout", new ClickSpout(), 10);
+				builder.setBolt("clickBolt", new ClickCounterBolt(), 3)
+				.shuffleGrouping("clickSpout");
+				builder.setBolt("mostClickedBolt", new MostClickedBolt(), 3)
+				.shuffleGrouping("clickBolt");
 				
 				Config conf = new Config();
 				conf.setDebug(true);

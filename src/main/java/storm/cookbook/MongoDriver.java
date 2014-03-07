@@ -63,7 +63,8 @@ public class MongoDriver {
 
 		BasicDBObject randomClick = new BasicDBObject("userId",
 				randomUser.get("_id"))
-				.append("movieId", randomMovie.get("_id"));
+				.append("movieId", randomMovie.get("_id"))
+				.append("processed", false);
 
 		DBCollection clicks = db.getCollection("clicks");
 		clicks.insert(randomClick);
